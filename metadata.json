@@ -1,0 +1,6 @@
+{
+  "name": "Live Stream",
+  "description": "ライブ配信の配信・視聴とリアルタイムコメント投稿ができるウェブアプリケーション",
+  "requestFramePermissions": ["camera", "microphone", "display-capture"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

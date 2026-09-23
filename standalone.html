@@ -1,0 +1,1435 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LiveStream - 単一HTML ライブ配信プラットフォーム</title>
+  <meta name="description" content="1ファイルで動作するリアルタイムライブ配信＆視聴＆チャットWebアプリケーション" />
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              rose: '#f43f5e',
+              indigo: '#6366f1',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #090d16; }
+    ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 9999px; }
+    ::-webkit-scrollbar-thumb:hover { background: #334155; }
+
+    /* Danmaku Comment Animation */
+    @keyframes danmaku-fly {
+      0% { transform: translateX(100vw); }
+      100% { transform: translateX(-100%); }
+    }
+    .danmaku-item {
+      position: absolute;
+      white-space: nowrap;
+      font-weight: 700;
+      text-shadow: 1px 1px 3px rgba(0,0,0,0.8), -1px -1px 3px rgba(0,0,0,0.8), 1px -1px 3px rgba(0,0,0,0.8), -1px 1px 3px rgba(0,0,0,0.8);
+      pointer-events: none;
+      animation: danmaku-fly 6.5s linear forwards;
+      z-index: 30;
+    }
+
+    /* Floating Reaction Animation */
+    @keyframes reaction-float {
+      0% { transform: translateY(0) scale(0.6); opacity: 0; }
+      15% { transform: translateY(-20px) scale(1.2); opacity: 1; }
+      80% { opacity: 0.9; }
+      100% { transform: translateY(-160px) scale(1.4) rotate(15deg); opacity: 0; }
+    }
+    .reaction-item {
+      position: absolute;
+      bottom: 24px;
+      pointer-events: none;
+      animation: reaction-float 2.5s ease-out forwards;
+      z-index: 40;
+    }
+  </style>
+</head>
+<body class="min-h-screen bg-slate-950 text-slate-100 flex flex-col selection:bg-rose-500 selection:text-white font-sans antialiased">
+
+  <!-- Header -->
+  <header class="sticky top-0 z-40 w-full border-b border-slate-800 bg-slate-950/95 backdrop-blur-md">
+    <div class="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6">
+      <!-- Logo -->
+      <div class="flex items-center space-x-3 cursor-pointer" onclick="switchTab('browse')">
+        <div class="relative flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-tr from-rose-600 to-indigo-600 shadow-lg shadow-rose-950/50">
+          <svg class="h-5 w-5 text-white animate-pulse" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4.9 19.1A10 10 0 1 1 19.1 4.9M7.8 16.2A6 6 0 1 1 16.2 7.8M12 12h.01"/></svg>
+          <span id="headerLiveDot" class="hidden absolute -top-1 -right-1 flex h-3 w-3">
+            <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-rose-400 opacity-75"></span>
+            <span class="relative inline-flex h-3 w-3 rounded-full bg-rose-500"></span>
+          </span>
+        </div>
+        <div>
+          <div class="flex items-center space-x-2">
+            <span class="font-bold text-lg text-slate-100 tracking-tight">LiveStream Single</span>
+            <span id="headerStatusBadge" class="rounded bg-slate-800 px-1.5 py-0.5 text-[11px] font-semibold text-slate-400">STANDALONE</span>
+          </div>
+          <p class="text-xs text-slate-400 hidden sm:block">1ファイル完結型 リアルタイム配信プラットフォーム</p>
+        </div>
+      </div>
+
+      <!-- Navigation Tabs -->
+      <nav class="flex items-center space-x-1 sm:space-x-2 bg-slate-900/80 p-1 rounded-xl border border-slate-800">
+        <button id="tabBtnBrowse" onclick="switchTab('browse')" class="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all bg-indigo-600 text-white shadow-sm">
+          <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect width="20" height="15" x="2" y="7" rx="2" ry="2"/><polyline points="17 2 12 7 7 2"/></svg>
+          <span>配信をみる</span>
+          <span id="browseLiveCountBadge" class="hidden ml-1 text-[10px] bg-rose-600 text-white px-1.5 py-0.2 rounded-full font-bold">LIVE</span>
+        </button>
+
+        <button id="tabBtnBroadcast" onclick="switchTab('broadcast')" class="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-slate-300 hover:text-white hover:bg-slate-800 transition-all">
+          <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="2"/><path d="M16.24 7.76a6 6 0 0 1 0 8.49m-8.48-.01a6 6 0 0 1 0-8.49m11.31-2.82a10 10 0 0 1 0 14.14m-14.14 0a10 10 0 0 1 0-14.14"/></svg>
+          <span>配信スタジオ</span>
+        </button>
+
+        <button id="tabBtnArchives" onclick="switchTab('archives')" class="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-slate-300 hover:text-white hover:bg-slate-800 transition-all">
+          <svg class="h-4 w-4 text-purple-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M7 3v18M17 3v18M3 7h18M3 17h18"/></svg>
+          <span>アーカイブ</span>
+          <span id="archivesCountBadge" class="ml-1 text-[10px] bg-purple-900/80 text-purple-200 px-1.5 py-0.2 rounded-full font-mono">0</span>
+        </button>
+
+        <button id="tabBtnDual" onclick="switchTab('dual')" class="hidden sm:flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-slate-300 hover:text-white hover:bg-slate-800 transition-all">
+          <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect width="9" height="18" x="3" y="3" rx="2"/><rect width="9" height="18" x="12" y="3" rx="2"/></svg>
+          <span>2画面テスト</span>
+          <span class="text-[10px] bg-emerald-500/20 text-emerald-300 px-1 py-0.2 rounded border border-emerald-500/30">便利</span>
+        </button>
+      </nav>
+
+      <!-- Action Buttons -->
+      <div class="flex items-center space-x-2">
+        <button onclick="downloadSelfHtml()" class="flex items-center space-x-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 px-3 py-1.5 text-xs font-semibold text-slate-200 transition-all" title="このHTMLファイルをPCに保存">
+          <svg class="h-4 w-4 text-rose-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          <span class="hidden sm:inline">HTML保存</span>
+        </button>
+        <button onclick="switchTab('broadcast')" class="flex items-center space-x-1.5 rounded-lg bg-gradient-to-r from-rose-600 to-pink-600 px-3.5 py-1.5 text-sm font-semibold text-white shadow-md shadow-rose-950/40 hover:from-rose-500 hover:to-pink-500 transition-all active:scale-95">
+          <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg>
+          <span class="hidden sm:inline">今すぐ配信</span>
+          <span class="sm:hidden">配信</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Notification Banner for Standalone Multi-tab Sync -->
+  <div class="bg-indigo-950/50 border-b border-indigo-500/20 px-4 py-2 text-xs text-indigo-300">
+    <div class="mx-auto max-w-7xl flex flex-wrap items-center justify-between gap-2">
+      <div class="flex items-center space-x-2">
+        <span class="flex h-2 w-2 rounded-full bg-emerald-400"></span>
+        <span><strong>1ファイル完結・完全同期対応:</strong> ブラウザで別タブを開いて「配信スタジオ」と「配信をみる」に分けると、サーバー不要でP2Pリアルタイム中継が可能です。</span>
+      </div>
+      <div class="flex items-center space-x-3 text-xs">
+        <button onclick="openViewerInNewTab()" class="text-indigo-200 underline hover:text-white">新タブで視聴画面を開く ↗</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Content Container -->
+  <main class="flex-1 max-w-7xl mx-auto w-full p-4 sm:p-6 pb-20">
+
+    <!-- TAB 1: BROWSE & WATCH VIEW -->
+    <div id="viewBrowse" class="space-y-6">
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- Main Live Player (Left 2 Cols) -->
+        <div class="lg:col-span-2 space-y-4">
+          <!-- Video Viewport Container -->
+          <div id="playerContainer" class="group relative aspect-video w-full overflow-hidden rounded-2xl bg-slate-950 border border-slate-800 shadow-2xl flex items-center justify-center">
+            
+            <!-- Danmaku Comments Overlay Layer -->
+            <div id="danmakuContainer" class="absolute inset-0 overflow-hidden pointer-events-none z-30"></div>
+
+            <!-- Reaction Float Container -->
+            <div id="reactionContainer" class="absolute inset-0 overflow-hidden pointer-events-none z-40"></div>
+
+            <!-- Layer 1: Fallback Canvas / Image Relay Feed -->
+            <img id="viewerFallbackImage" class="absolute inset-0 h-full w-full object-contain bg-black transition-opacity duration-150 opacity-100 z-10" alt="Live stream relay feed" style="display:none;" />
+
+            <!-- Layer 2: WebRTC Video Stream -->
+            <video id="viewerVideo" autoplay playsinline class="absolute inset-0 h-full w-full object-contain bg-black z-20"></video>
+
+            <!-- Layer 3: Offline / Waiting Screen -->
+            <div id="viewerOfflineOverlay" class="flex flex-col items-center justify-center p-6 text-center z-10">
+              <div class="relative mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-900 border border-slate-800">
+                <svg class="h-8 w-8 text-slate-500 animate-pulse" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="2"/><path d="M16.24 7.76a6 6 0 0 1 0 8.49m-8.48-.01a6 6 0 0 1 0-8.49"/></svg>
+              </div>
+              <h3 class="text-base font-bold text-slate-200">配信準備中またはオフラインです</h3>
+              <p class="mt-1 text-xs text-slate-400 max-w-sm">上部メニューの「配信スタジオ」からカメラ配信を開始するか、2画面テストをお試しください。</p>
+              <button onclick="switchTab('broadcast')" class="mt-4 rounded-xl bg-rose-600 hover:bg-rose-500 px-4 py-2 text-xs font-bold text-white transition-all shadow-lg shadow-rose-950/40">配信スタジオを開く</button>
+            </div>
+
+            <!-- Live Status Badges & Controls Overlay -->
+            <div class="absolute top-4 left-4 flex items-center space-x-2 z-30">
+              <span id="playerLiveBadge" class="hidden items-center space-x-1.5 rounded-md bg-rose-600 px-2.5 py-1 text-xs font-black text-white shadow-lg uppercase tracking-wider">
+                <span class="h-2 w-2 rounded-full bg-white animate-pulse"></span>
+                <span>LIVE</span>
+              </span>
+              <span id="playerConnectionBadge" class="flex items-center space-x-1 rounded-md bg-slate-900/90 border border-slate-700/80 px-2 py-1 text-[11px] font-medium text-slate-300 backdrop-blur-md">
+                <svg class="h-3 w-3 text-emerald-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M5 12.55a11 11 0 0 1 14.08 0M1.42 9a16 16 0 0 1 21.16 0M8.53 16.11a6 6 0 0 1 6.95 0M12 20h.01"/></svg>
+                <span id="playerConnectionText">中継スタンバイ</span>
+              </span>
+              <span id="playerViewerCountBadge" class="flex items-center space-x-1 rounded-md bg-slate-900/80 px-2 py-1 text-[11px] text-slate-300">
+                <svg class="h-3 w-3 text-slate-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+                <span id="playerViewerCount">0</span>人視聴中
+              </span>
+            </div>
+
+            <!-- Bottom Video Control Bar -->
+            <div class="absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-slate-950/90 via-slate-950/40 to-transparent flex items-center justify-between z-30 opacity-0 group-hover:opacity-100 transition-opacity">
+              <div class="flex items-center space-x-3">
+                <button onclick="toggleViewerPlay()" class="text-white hover:text-rose-400 transition-colors">
+                  <svg id="btnPlayIcon" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polygon points="6 3 20 12 6 21 6 3"/></svg>
+                </button>
+                <button onclick="toggleViewerMute()" class="text-white hover:text-rose-400 transition-colors">
+                  <svg id="btnMuteIcon" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+                </button>
+                <input id="volumeSlider" type="range" min="0" max="1" step="0.05" value="1" oninput="changeViewerVolume(this.value)" class="w-20 accent-rose-500 h-1.5 rounded-lg cursor-pointer bg-slate-700" />
+              </div>
+              <div class="flex items-center space-x-3">
+                <button onclick="toggleDanmaku()" id="btnDanmakuToggle" class="text-xs px-2 py-1 rounded bg-slate-800/80 border border-slate-700 text-slate-300 hover:text-white font-medium">弾幕: ON</button>
+                <button onclick="toggleFullscreen()" class="text-white hover:text-rose-400 transition-colors">
+                  <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Stream Meta & Like / Reaction Bar -->
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-2xl bg-slate-900/60 border border-slate-800/80">
+            <div class="space-y-1">
+              <div class="flex items-center space-x-2">
+                <h1 id="streamDisplayTitle" class="text-lg font-bold text-slate-100">配信待機中</h1>
+                <span id="streamDisplayCategory" class="rounded-full bg-indigo-500/20 px-2.5 py-0.5 text-xs font-semibold text-indigo-300 border border-indigo-500/30">一般</span>
+              </div>
+              <div class="flex items-center space-x-2 text-xs text-slate-400">
+                <span id="streamDisplayBroadcaster" class="font-medium text-slate-300">配信者: 未接続</span>
+                <span>•</span>
+                <span id="streamDisplayTimer">オフライン</span>
+              </div>
+            </div>
+
+            <!-- Like & Emoji Reactions -->
+            <div class="flex items-center space-x-2">
+              <button onclick="sendLike()" class="flex items-center space-x-1.5 rounded-xl bg-rose-600/20 hover:bg-rose-600/30 border border-rose-500/30 px-3.5 py-2 text-xs font-bold text-rose-300 transition-all active:scale-95 shadow-sm">
+                <svg class="h-4 w-4 text-rose-400 fill-rose-500" viewBox="0 0 24 24"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg>
+                <span id="streamLikeCount">0</span>
+              </button>
+
+              <!-- Quick Reaction Emojis -->
+              <div class="flex items-center space-x-1 bg-slate-800/80 p-1 rounded-xl border border-slate-700">
+                <button onclick="sendReaction('❤️')" class="hover:scale-125 transition-transform px-1 text-sm">❤️</button>
+                <button onclick="sendReaction('🔥')" class="hover:scale-125 transition-transform px-1 text-sm">🔥</button>
+                <button onclick="sendReaction('🎉')" class="hover:scale-125 transition-transform px-1 text-sm">🎉</button>
+                <button onclick="sendReaction('👏')" class="hover:scale-125 transition-transform px-1 text-sm">👏</button>
+                <button onclick="sendReaction('💯')" class="hover:scale-125 transition-transform px-1 text-sm">💯</button>
+                <button onclick="sendReaction('🤣')" class="hover:scale-125 transition-transform px-1 text-sm">🤣</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Live Chat Panel (Right 1 Col) -->
+        <div class="lg:col-span-1 flex flex-col h-[520px] rounded-2xl bg-slate-900/80 border border-slate-800 shadow-xl overflow-hidden">
+          <!-- Chat Header -->
+          <div class="p-3.5 border-b border-slate-800 flex items-center justify-between bg-slate-950/60">
+            <div class="flex items-center space-x-2">
+              <svg class="h-4 w-4 text-rose-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+              <h2 class="text-xs font-bold text-slate-200">リアルタイムチャット</h2>
+            </div>
+            <button onclick="openSuperChatModal()" class="flex items-center space-x-1 px-2.5 py-1 rounded-lg bg-gradient-to-r from-amber-500 to-rose-500 text-[11px] font-black text-white shadow hover:opacity-90 transition-opacity">
+              <span>¥</span>
+              <span>スパチャ</span>
+            </button>
+          </div>
+
+          <!-- Chat Message List -->
+          <div id="chatMessageList" class="flex-1 overflow-y-auto p-3 space-y-2.5 text-xs">
+            <!-- Messages inserted dynamically -->
+          </div>
+
+          <!-- Chat Input Form -->
+          <form id="chatForm" onsubmit="handleSendChat(event)" class="p-3 border-t border-slate-800 bg-slate-950/60 space-y-2">
+            <div class="flex items-center space-x-2">
+              <input id="chatInputName" type="text" placeholder="名前" value="リスナー" class="w-24 rounded-lg bg-slate-800 border border-slate-700 px-2.5 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-rose-500" />
+              <input id="chatInputText" type="text" placeholder="コメントを入力..." class="flex-1 rounded-lg bg-slate-800 border border-slate-700 px-3 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-rose-500" />
+              <button type="submit" class="rounded-lg bg-rose-600 hover:bg-rose-500 px-3 py-1.5 text-xs font-bold text-white transition-colors">送信</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 2: BROADCASTER STUDIO VIEW -->
+    <div id="viewBroadcast" class="hidden space-y-6">
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- Studio Video Preview (Left 2 Cols) -->
+        <div class="lg:col-span-2 space-y-4">
+          <div class="relative aspect-video w-full overflow-hidden rounded-2xl bg-slate-950 border border-slate-800 shadow-2xl flex items-center justify-center">
+            <video id="studioVideo" autoplay playsinline muted class="h-full w-full object-contain bg-black"></video>
+            
+            <!-- Inactive Overlay -->
+            <div id="studioInactiveOverlay" class="absolute inset-0 flex flex-col items-center justify-center bg-slate-950/90 text-center p-6 z-20">
+              <div class="h-14 w-14 rounded-2xl bg-slate-900 border border-slate-800 flex items-center justify-center mb-3">
+                <svg class="h-7 w-7 text-slate-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="m22 8-6 4 6 4V8Z"/><rect width="14" height="12" x="2" y="6" rx="2" ry="2"/></svg>
+              </div>
+              <h3 class="text-sm font-bold text-slate-200">カメラまたは画面共有を開始してください</h3>
+              <p class="text-xs text-slate-400 mt-1 max-w-sm">下の「カメラ開始」または「画面共有」ボタンをクリックして配信ソースを選択します。</p>
+              <div class="mt-4 flex items-center space-x-3">
+                <button onclick="startCamera()" class="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-xs font-bold text-white shadow-md">カメラを開始</button>
+                <button onclick="startScreenShare()" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-200 border border-slate-700">画面共有を開始</button>
+              </div>
+            </div>
+
+            <!-- Studio Live Banner -->
+            <div id="studioLiveBanner" class="hidden absolute top-4 left-4 z-30 flex items-center space-x-2">
+              <span class="flex items-center space-x-1.5 rounded-md bg-rose-600 px-2.5 py-1 text-xs font-black text-white shadow-lg animate-pulse">
+                <span class="h-2 w-2 rounded-full bg-white"></span>
+                <span>ON AIR</span>
+              </span>
+              <span id="studioElapsedBadge" class="rounded-md bg-slate-900/80 px-2 py-1 text-xs font-mono text-slate-300">00:00:00</span>
+            </div>
+          </div>
+
+          <!-- Studio Toolbar Controls -->
+          <div class="flex flex-wrap items-center justify-between gap-3 p-4 rounded-2xl bg-slate-900/70 border border-slate-800">
+            <div class="flex flex-wrap items-center gap-2">
+              <button id="btnToggleCam" onclick="toggleCameraTrack()" class="flex items-center space-x-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 px-3 py-2 text-xs font-semibold text-slate-200 border border-slate-700">
+                <svg class="h-4 w-4 text-emerald-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="m22 8-6 4 6 4V8Z"/><rect width="14" height="12" x="2" y="6" rx="2" ry="2"/></svg>
+                <span id="camBtnLabel">カメラ ON</span>
+              </button>
+
+              <button id="btnToggleMic" onclick="toggleMicrophoneTrack()" class="flex items-center space-x-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 px-3 py-2 text-xs font-semibold text-slate-200 border border-slate-700">
+                <svg class="h-4 w-4 text-emerald-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></svg>
+                <span id="micBtnLabel">マイク ON</span>
+              </button>
+
+              <button onclick="startScreenShare()" class="flex items-center space-x-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 px-3 py-2 text-xs font-semibold text-slate-200 border border-slate-700">
+                <svg class="h-4 w-4 text-indigo-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect width="20" height="14" x="2" y="3" rx="2"/><line x1="8" x2="16" y1="21" y2="21"/><line x1="12" x2="12" y1="17" y2="21"/></svg>
+                <span>画面共有</span>
+              </button>
+
+              <!-- Audio Level Visualizer Canvas -->
+              <div class="flex items-center space-x-2 bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-800">
+                <span class="text-[10px] font-bold text-slate-500">MIC</span>
+                <canvas id="audioMeterCanvas" width="60" height="12" class="rounded bg-slate-900"></canvas>
+              </div>
+            </div>
+
+            <!-- Start / Stop Broadcast Button -->
+            <button id="btnStartBroadcast" onclick="toggleBroadcastState()" class="flex items-center space-x-2 rounded-xl bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-500 hover:to-pink-500 px-5 py-2.5 text-xs font-bold text-white shadow-lg shadow-rose-950/50 transition-all active:scale-95">
+              <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="2"/><path d="M16.24 7.76a6 6 0 0 1 0 8.49m-8.48-.01a6 6 0 0 1 0-8.49"/></svg>
+              <span id="broadcastBtnText">配信を開始する</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Studio Settings & Info (Right 1 Col) -->
+        <div class="lg:col-span-1 space-y-4">
+          <div class="p-4 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-4">
+            <h2 class="text-xs font-bold text-slate-200 uppercase tracking-wider flex items-center space-x-1.5">
+              <svg class="h-4 w-4 text-rose-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+              <span>配信設定</span>
+            </h2>
+
+            <div class="space-y-3">
+              <div>
+                <label class="text-[11px] font-semibold text-slate-400">配信タイトル</label>
+                <input id="inputStudioTitle" type="text" value="新規ライブ配信" placeholder="配信タイトルを入力..." onchange="updateBroadcastMeta()" class="mt-1 w-full rounded-xl bg-slate-800 border border-slate-700 px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-rose-500" />
+              </div>
+
+              <div>
+                <label class="text-[11px] font-semibold text-slate-400">配信者名</label>
+                <input id="inputStudioBroadcaster" type="text" value="配信者" placeholder="あなたの名前" onchange="updateBroadcastMeta()" class="mt-1 w-full rounded-xl bg-slate-800 border border-slate-700 px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-rose-500" />
+              </div>
+
+              <div>
+                <label class="text-[11px] font-semibold text-slate-400">カテゴリー</label>
+                <select id="selectStudioCategory" onchange="updateBroadcastMeta()" class="mt-1 w-full rounded-xl bg-slate-800 border border-slate-700 px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-rose-500">
+                  <option value="雑談・トーク">雑談・トーク</option>
+                  <option value="ゲーム実況">ゲーム実況</option>
+                  <option value="プログラミング・作業">プログラミング・作業</option>
+                  <option value="音楽・ライブ">音楽・ライブ</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Broadcaster Telemetry Stats -->
+            <div class="pt-3 border-t border-slate-800 space-y-2 text-xs">
+              <div class="flex justify-between text-slate-400">
+                <span>中継状態:</span>
+                <span id="telemetryStatus" class="text-emerald-400 font-semibold">待機中</span>
+              </div>
+              <div class="flex justify-between text-slate-400">
+                <span>同期フレームレート:</span>
+                <span class="text-slate-200">約 6.6 FPS (150ms リレー)</span>
+              </div>
+              <div class="flex justify-between text-slate-400">
+                <span>マルチタブ P2P:</span>
+                <span class="text-slate-200">BroadcastChannel 自動中継</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 3: DUAL SCREEN SPLIT VIEW -->
+    <div id="viewDual" class="hidden space-y-6">
+      <div class="p-4 rounded-xl bg-indigo-950/40 border border-indigo-500/30 flex items-center justify-between text-xs text-indigo-200">
+        <span>💡 <strong>2画面分割プレビュー:</strong> 左側でカメラを動かすと、右側の視聴者画面にリアルタイムで映像とチャットが反映されます。</span>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <!-- Dual Left: Studio -->
+        <div class="space-y-3 p-4 rounded-2xl bg-slate-900/60 border border-slate-800">
+          <h3 class="text-xs font-bold text-rose-400 flex items-center space-x-1.5">
+            <span class="h-2 w-2 rounded-full bg-rose-500"></span>
+            <span>【配信者視点】配信スタジオ</span>
+          </h3>
+          <div class="relative aspect-video w-full overflow-hidden rounded-xl bg-slate-950 border border-slate-800">
+            <video id="dualStudioVideo" autoplay playsinline muted class="h-full w-full object-contain bg-black"></video>
+          </div>
+          <div class="flex items-center justify-between">
+            <button onclick="startCamera()" class="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-xs font-semibold text-white">カメラ起動</button>
+            <button onclick="toggleBroadcastState()" class="px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-xs font-semibold text-white">配信開始 / 停止</button>
+          </div>
+        </div>
+
+        <!-- Dual Right: Viewer -->
+        <div class="space-y-3 p-4 rounded-2xl bg-slate-900/60 border border-slate-800">
+          <h3 class="text-xs font-bold text-indigo-400 flex items-center space-x-1.5">
+            <span class="h-2 w-2 rounded-full bg-indigo-500"></span>
+            <span>【視聴者視点】リアルタイム視聴</span>
+          </h3>
+          <div class="relative aspect-video w-full overflow-hidden rounded-xl bg-slate-950 border border-slate-800">
+            <img id="dualViewerImage" class="absolute inset-0 h-full w-full object-contain bg-black" alt="Relay Preview" />
+            <video id="dualViewerVideo" autoplay playsinline muted class="absolute inset-0 h-full w-full object-contain bg-black"></video>
+          </div>
+          <div class="flex items-center justify-between text-xs text-slate-400">
+            <span>遅延: 約 0.1秒 (即時反映)</span>
+            <button onclick="sendLike()" class="px-3 py-1 rounded-lg bg-rose-600/20 text-rose-300 font-bold border border-rose-500/30">❤️ いいねを送る</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 4: ARCHIVES VIEW -->
+    <div id="viewArchives" class="hidden space-y-6">
+      <!-- Archive List View -->
+      <div id="archiveListContainer" class="space-y-6">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-800">
+          <div>
+            <div class="flex items-center space-x-2">
+              <span class="p-1.5 rounded-lg bg-purple-500/20 text-purple-400">
+                <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M7 3v18M17 3v18M3 7h18M3 17h18"/></svg>
+              </span>
+              <h2 class="text-xl font-bold text-white">過去の配信アーカイブ</h2>
+            </div>
+            <p class="text-xs text-slate-400 mt-1">配信終了後の動画と、当時のチャット・弾幕コメントをそのまま同期して追体験できます。</p>
+          </div>
+          <div class="flex items-center space-x-2">
+            <button onclick="switchTab('broadcast')" class="flex items-center space-x-1.5 px-3.5 py-2 rounded-xl bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-500 hover:to-pink-500 text-xs font-bold text-white shadow-lg">
+              <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="2"/><path d="M16.24 7.76a6 6 0 0 1 0 8.49m-8.48-.01a6 6 0 0 1 0-8.49"/></svg>
+              <span>スタジオで配信録画する</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Archive Grid -->
+        <div id="archiveCardsGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+          <!-- Dynamically populated -->
+        </div>
+      </div>
+
+      <!-- Archive Watch Player View -->
+      <div id="archivePlayerContainer" class="hidden space-y-4">
+        <div class="flex items-center justify-between">
+          <button onclick="backToArchiveList()" class="flex items-center space-x-1 text-xs font-bold text-slate-400 hover:text-white px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-800 hover:border-slate-700">
+            <span>← アーカイブ一覧に戻る</span>
+          </button>
+          <div class="flex items-center space-x-2">
+            <button onclick="downloadActiveArchiveVideo()" id="btnDownloadArchiveVideo" class="flex items-center space-x-1 text-xs font-semibold text-emerald-400 hover:text-emerald-300 px-3 py-1.5 rounded-lg bg-emerald-950/40 border border-emerald-500/30">
+              <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              <span>動画保存</span>
+            </button>
+            <button onclick="downloadActiveArchiveChatJson()" class="flex items-center space-x-1 text-xs font-semibold text-slate-300 hover:text-white px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700">
+              <span>チャットJSON</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <!-- Video Column -->
+          <div class="lg:col-span-2 space-y-3">
+            <div id="archiveVideoWrapper" class="relative aspect-video w-full rounded-2xl bg-black border border-slate-800 overflow-hidden shadow-2xl flex items-center justify-center">
+              <video id="archiveVideoEl" playsinline class="h-full w-full object-contain"></video>
+              <canvas id="archiveSimCanvas" class="hidden absolute inset-0 h-full w-full object-contain"></canvas>
+              <div id="archiveDanmakuLayer" class="absolute inset-0 overflow-hidden pointer-events-none z-30"></div>
+
+              <div class="absolute top-3 left-3 z-20 flex items-center space-x-2">
+                <span class="rounded bg-purple-600 px-2 py-0.5 text-xs font-bold text-white shadow">ARCHIVE REPLAY</span>
+                <span id="archiveReplayTimeBadge" class="rounded bg-black/60 px-2 py-0.5 text-xs font-mono text-slate-200">00:00 / 00:00</span>
+              </div>
+            </div>
+
+            <!-- Custom Controls -->
+            <div class="p-3 rounded-xl bg-slate-900 border border-slate-800 flex flex-col gap-2">
+              <input type="range" id="archiveSeeker" min="0" max="100" value="0" step="0.1" class="w-full accent-purple-500 cursor-pointer h-1.5 rounded bg-slate-800" oninput="seekArchive(this.value)" />
+              <div class="flex items-center justify-between text-xs text-slate-300">
+                <div class="flex items-center space-x-3">
+                  <button onclick="toggleArchivePlay()" id="btnArchivePlay" class="p-2 rounded-lg bg-purple-600 hover:bg-purple-500 text-white font-bold">
+                    再生 / 一時停止
+                  </button>
+                  <span id="archiveCurrentTimeText" class="font-mono text-slate-400">00:00 / 00:00</span>
+                </div>
+                <div class="flex items-center space-x-2">
+                  <span class="text-slate-400">速度:</span>
+                  <select onchange="changeArchivePlaybackRate(this.value)" class="bg-slate-800 rounded px-2 py-1 text-xs text-white border border-slate-700">
+                    <option value="1">1.0x (標準)</option>
+                    <option value="1.25">1.25x</option>
+                    <option value="1.5">1.5x</option>
+                    <option value="2">2.0x</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <!-- Meta details -->
+            <div class="p-4 rounded-xl bg-slate-900/80 border border-slate-800 space-y-2">
+              <h1 id="archiveWatchTitle" class="text-lg font-bold text-white"></h1>
+              <div class="flex flex-wrap items-center gap-3 text-xs text-slate-400">
+                <span id="archiveWatchBroadcaster" class="font-medium text-slate-200"></span>
+                <span>•</span>
+                <span id="archiveWatchDate"></span>
+                <span>•</span>
+                <span id="archiveWatchDuration"></span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Chat Replay Column -->
+          <div class="h-[550px] flex flex-col rounded-2xl bg-slate-900 border border-slate-800 overflow-hidden shadow-xl">
+            <div class="px-4 py-3 bg-slate-950 border-b border-slate-800 flex items-center justify-between">
+              <div class="flex items-center space-x-2">
+                <span class="h-2 w-2 rounded-full bg-purple-500"></span>
+                <span class="text-xs font-bold text-slate-100">チャットリプレイ</span>
+              </div>
+              <span class="text-[10px] text-purple-400 bg-purple-950/60 px-2 py-0.5 rounded border border-purple-500/30">完全同期</span>
+            </div>
+            <div id="archiveChatList" class="flex-1 overflow-y-auto p-3 space-y-2 text-xs">
+              <!-- Replayed messages appear here in sync -->
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Super Chat Modal -->
+  <div id="superChatModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+    <div class="w-full max-w-md rounded-2xl bg-slate-900 border border-slate-800 p-5 shadow-2xl space-y-4">
+      <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+        <h3 class="text-sm font-bold text-slate-100 flex items-center space-x-2">
+          <span class="rounded-full bg-amber-500/20 p-1 text-amber-400">¥</span>
+          <span>スーパーチャットを送信</span>
+        </h3>
+        <button onclick="closeSuperChatModal()" class="text-slate-400 hover:text-white">✕</button>
+      </div>
+
+      <!-- Presets -->
+      <div class="grid grid-cols-4 gap-2">
+        <button onclick="selectSuperChatAmount(500, 'bg-blue-600', '#2563eb')" class="p-2 rounded-xl bg-blue-600/20 border border-blue-500/40 text-blue-300 text-xs font-bold hover:bg-blue-600/30">¥500</button>
+        <button onclick="selectSuperChatAmount(1000, 'bg-cyan-600', '#0891b2')" class="p-2 rounded-xl bg-cyan-600/20 border border-cyan-500/40 text-cyan-300 text-xs font-bold hover:bg-cyan-600/30">¥1,000</button>
+        <button onclick="selectSuperChatAmount(3000, 'bg-amber-600', '#d97706')" class="p-2 rounded-xl bg-amber-600/20 border border-amber-500/40 text-amber-300 text-xs font-bold hover:bg-amber-600/30">¥3,000</button>
+        <button onclick="selectSuperChatAmount(10000, 'bg-rose-600', '#e11d48')" class="p-2 rounded-xl bg-rose-600/20 border border-rose-500/40 text-rose-300 text-xs font-bold hover:bg-rose-600/30">¥10,000</button>
+      </div>
+
+      <div>
+        <label class="text-xs font-medium text-slate-400">応援メッセージ</label>
+        <textarea id="superChatMessageInput" rows="3" placeholder="配信者を応援するメッセージ..." class="mt-1 w-full rounded-xl bg-slate-800 border border-slate-700 p-2.5 text-xs text-slate-100 focus:outline-none focus:border-amber-500"></textarea>
+      </div>
+
+      <div class="flex items-center justify-end space-x-2 pt-2">
+        <button onclick="closeSuperChatModal()" class="px-4 py-2 rounded-xl bg-slate-800 text-xs font-semibold text-slate-300">キャンセル</button>
+        <button onclick="submitSuperChat()" id="btnSubmitSuperChat" class="px-4 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-rose-500 text-xs font-bold text-white shadow-lg">¥1,000 で送信</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="border-t border-slate-900 bg-slate-950/80 py-6 text-xs text-slate-500 mt-auto">
+    <div class="mx-auto max-w-7xl px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+      <div class="flex items-center space-x-2">
+        <span class="font-semibold text-slate-300">LiveStream Standalone</span>
+        <span>—</span>
+        <span>HTML1つで動くリアルタイム配信</span>
+      </div>
+      <div class="flex items-center space-x-4">
+        <span>WebRTC ＆ BroadcastChannel 同期</span>
+        <span>弾幕コメント・スーパーチャット</span>
+      </div>
+    </div>
+  </footer>
+
+  <!-- STANDALONE JAVASCRIPT ENGINE (All-in-One Logic) -->
+  <script>
+    // State Management
+    const state = {
+      currentTab: 'browse',
+      isBroadcasting: false,
+      isLive: false,
+      broadcastStartTime: 0,
+      localStream: null,
+      viewerStream: null,
+      latestFrame: null,
+      danmakuEnabled: true,
+      viewerCount: 0,
+      likes: 0,
+      title: '配信待機中',
+      broadcasterName: '配信者',
+      category: '一般',
+      selectedSuperChat: { amount: 1000, bg: 'bg-cyan-600', color: '#0891b2' },
+      isMuted: false,
+      volume: 1,
+      comments: []
+    };
+
+    // Inter-Tab Zero-Server Signaling Engine via BroadcastChannel
+    const channel = new BroadcastChannel('livestream_standalone_bus');
+
+    channel.onmessage = (event) => {
+      const msg = event.data;
+      if (!msg || !msg.type) return;
+
+      if (msg.type === 'stream_frame') {
+        renderReceivedFrame(msg.frameData);
+      } else if (msg.type === 'chat_message') {
+        appendChatMessage(msg.message);
+      } else if (msg.type === 'super_chat') {
+        appendSuperChatMessage(msg.message);
+      } else if (msg.type === 'reaction') {
+        showFloatingReaction(msg.emoji);
+      } else if (msg.type === 'like') {
+        state.likes = msg.likes;
+        document.getElementById('streamLikeCount').textContent = state.likes;
+        showFloatingReaction('❤️');
+      } else if (msg.type === 'meta_update') {
+        state.title = msg.title;
+        state.broadcasterName = msg.broadcasterName;
+        state.category = msg.category;
+        state.isLive = msg.isLive;
+        updateUIWithMeta();
+      }
+    };
+
+    // WebSocket sync if running alongside a server
+    let ws = null;
+    try {
+      if (location.protocol === 'http:' || location.protocol === 'https:') {
+        const wsProto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+        ws = new WebSocket(`${wsProto}//${location.host}/ws`);
+        ws.onopen = () => {
+          ws.send(JSON.stringify({ type: 'join_room', roomId: 'main-stream', role: 'viewer', userName: 'リスナー' }));
+        };
+        ws.onmessage = (ev) => {
+          try {
+            const data = JSON.parse(ev.data);
+            if (data.type === 'stream_frame' && data.frameData) {
+              renderReceivedFrame(data.frameData);
+            } else if (data.type === 'chat_message') {
+              appendChatMessage(data.message);
+            } else if (data.type === 'reaction') {
+              showFloatingReaction(data.reaction.emoji);
+            }
+          } catch(e) {}
+        };
+      }
+    } catch(e) {}
+
+    // Initialize UI
+    function init() {
+      renderChatMessages();
+      updateUIWithMeta();
+      setupWatchdog();
+      startAudioMeter();
+      updateArchiveCountBadge();
+    }
+
+    // Tab Switching
+    function switchTab(tab) {
+      state.currentTab = tab;
+      document.getElementById('viewBrowse').classList.toggle('hidden', tab !== 'browse');
+      document.getElementById('viewBroadcast').classList.toggle('hidden', tab !== 'broadcast');
+      document.getElementById('viewDual').classList.toggle('hidden', tab !== 'dual');
+      const viewArchives = document.getElementById('viewArchives');
+      if (viewArchives) viewArchives.classList.toggle('hidden', tab !== 'archives');
+
+      const btnBrowse = document.getElementById('tabBtnBrowse');
+      const btnBroadcast = document.getElementById('tabBtnBroadcast');
+      const btnDual = document.getElementById('tabBtnDual');
+      const btnArchives = document.getElementById('tabBtnArchives');
+
+      btnBrowse.className = tab === 'browse' ? 'flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all bg-indigo-600 text-white shadow-sm' : 'flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-slate-300 hover:text-white hover:bg-slate-800 transition-all';
+      btnBroadcast.className = tab === 'broadcast' ? 'flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all bg-rose-600 text-white shadow-sm' : 'flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-slate-300 hover:text-white hover:bg-slate-800 transition-all';
+      if (btnArchives) {
+        btnArchives.className = tab === 'archives' ? 'flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all bg-purple-600 text-white shadow-sm' : 'flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-slate-300 hover:text-white hover:bg-slate-800 transition-all';
+      }
+      if (btnDual) {
+        btnDual.className = tab === 'dual' ? 'flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all bg-emerald-600 text-white shadow-sm' : 'flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-slate-300 hover:text-white hover:bg-slate-800 transition-all';
+      }
+
+      if (tab === 'archives') {
+        renderArchiveList();
+      } else if (tab === 'dual') {
+        const studioVid = document.getElementById('studioVideo');
+        const dualStudioVid = document.getElementById('dualStudioVideo');
+        if (state.localStream && dualStudioVid) {
+          dualStudioVid.srcObject = state.localStream;
+        }
+      }
+    }
+
+    // Camera & Audio Capture
+    async function startCamera() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { width: { ideal: 1280 }, height: { ideal: 720 } },
+          audio: true
+        });
+        attachLocalStream(stream);
+      } catch (err) {
+        alert('カメラの起動に失敗しました。カメラの利用権限を許可してください。');
+      }
+    }
+
+    async function startScreenShare() {
+      try {
+        const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+        attachLocalStream(stream);
+      } catch (err) {
+        console.warn('Screen share cancelled or failed:', err);
+      }
+    }
+
+    function attachLocalStream(stream) {
+      state.localStream = stream;
+      const studioVid = document.getElementById('studioVideo');
+      const dualStudioVid = document.getElementById('dualStudioVideo');
+      studioVid.srcObject = stream;
+      if (dualStudioVid) dualStudioVid.srcObject = stream;
+
+      document.getElementById('studioInactiveOverlay').classList.add('hidden');
+      setupAudioAnalyser(stream);
+    }
+
+    function toggleCameraTrack() {
+      if (!state.localStream) return;
+      const videoTrack = state.localStream.getVideoTracks()[0];
+      if (videoTrack) {
+        videoTrack.enabled = !videoTrack.enabled;
+        document.getElementById('camBtnLabel').textContent = videoTrack.enabled ? 'カメラ ON' : 'カメラ OFF';
+      }
+    }
+
+    function toggleMicrophoneTrack() {
+      if (!state.localStream) return;
+      const audioTrack = state.localStream.getAudioTracks()[0];
+      if (audioTrack) {
+        audioTrack.enabled = !audioTrack.enabled;
+        document.getElementById('micBtnLabel').textContent = audioTrack.enabled ? 'マイク ON' : 'マイク OFF';
+      }
+    }
+
+    // Start / Stop Broadcast State
+    let broadcastInterval = null;
+    function toggleBroadcastState() {
+      state.isBroadcasting = !state.isBroadcasting;
+      state.isLive = state.isBroadcasting;
+
+      const btn = document.getElementById('btnStartBroadcast');
+      const label = document.getElementById('broadcastBtnText');
+      const banner = document.getElementById('studioLiveBanner');
+      const telemetry = document.getElementById('telemetryStatus');
+
+      if (state.isBroadcasting) {
+        if (!state.localStream) {
+          startCamera().then(() => startBroadcastingLoop());
+        } else {
+          startBroadcastingLoop();
+        }
+        btn.className = 'flex items-center space-x-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 px-5 py-2.5 text-xs font-bold text-rose-400 shadow-lg';
+        label.textContent = '配信を停止する';
+        banner.classList.remove('hidden');
+        telemetry.textContent = '生配信中 (P2P同期中)';
+        telemetry.className = 'text-rose-400 font-semibold animate-pulse';
+        state.broadcastStartTime = Date.now();
+      } else {
+        clearInterval(broadcastInterval);
+        btn.className = 'flex items-center space-x-2 rounded-xl bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-500 hover:to-pink-500 px-5 py-2.5 text-xs font-bold text-white shadow-lg';
+        label.textContent = '配信を開始する';
+        banner.classList.add('hidden');
+        telemetry.textContent = '待機中';
+        telemetry.className = 'text-slate-400 font-semibold';
+      }
+
+      updateBroadcastMeta();
+    }
+
+    function startBroadcastingLoop() {
+      clearInterval(broadcastInterval);
+      const canvas = document.createElement('canvas');
+      canvas.width = 640;
+      canvas.height = 360;
+      const ctx = canvas.getContext('2d');
+      const studioVid = document.getElementById('studioVideo');
+
+      // 150ms High-Frequency Frame Sync (6.6 FPS)
+      broadcastInterval = setInterval(() => {
+        if (!state.isBroadcasting || !studioVid || studioVid.videoWidth === 0) return;
+        try {
+          ctx.drawImage(studioVid, 0, 0, canvas.width, canvas.height);
+          const frameData = canvas.toDataURL('image/jpeg', 0.6);
+          renderReceivedFrame(frameData);
+
+          // Broadcast to other tabs & websocket
+          channel.postMessage({ type: 'stream_frame', frameData });
+          if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: 'stream_frame', roomId: 'main-stream', frameData }));
+          }
+        } catch(e) {}
+      }, 150);
+    }
+
+    // Audio Meter
+    let audioCtx = null;
+    let analyser = null;
+    function setupAudioAnalyser(stream) {
+      try {
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const source = audioCtx.createMediaStreamSource(stream);
+        analyser = audioCtx.createAnalyser();
+        analyser.fftSize = 64;
+        source.connect(analyser);
+      } catch(e) {}
+    }
+
+    function startAudioMeter() {
+      const canvas = document.getElementById('audioMeterCanvas');
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      const dataArray = new Uint8Array(32);
+
+      function draw() {
+        requestAnimationFrame(draw);
+        if (!analyser) {
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          return;
+        }
+        analyser.getByteFrequencyData(dataArray);
+        let sum = 0;
+        for (let i = 0; i < dataArray.length; i++) sum += dataArray[i];
+        const avg = sum / dataArray.length;
+        const width = (avg / 255) * canvas.width;
+
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        const grad = ctx.createLinearGradient(0, 0, canvas.width, 0);
+        grad.addColorStop(0, '#10b981');
+        grad.addColorStop(0.7, '#f59e0b');
+        grad.addColorStop(1, '#ef4444');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, width, canvas.height);
+      }
+      draw();
+    }
+
+    // Viewer Rendering (Zero-Freeze Dual-Layer Watchdog)
+    let lastFrameTime = Date.now();
+    function renderReceivedFrame(dataUrl) {
+      state.latestFrame = dataUrl;
+      lastFrameTime = Date.now();
+
+      const img = document.getElementById('viewerFallbackImage');
+      const dualImg = document.getElementById('dualViewerImage');
+      const offline = document.getElementById('viewerOfflineOverlay');
+
+      if (img) {
+        img.src = dataUrl;
+        img.style.display = 'block';
+      }
+      if (dualImg) {
+        dualImg.src = dataUrl;
+      }
+      if (offline) {
+        offline.style.display = 'none';
+      }
+
+      document.getElementById('headerLiveDot').classList.remove('hidden');
+      document.getElementById('headerStatusBadge').textContent = 'LIVE NOW';
+      document.getElementById('headerStatusBadge').className = 'rounded bg-rose-600 px-1.5 py-0.5 text-[11px] font-black text-white shadow';
+    }
+
+    function setupWatchdog() {
+      setInterval(() => {
+        // If no frame received for 6 seconds, show offline
+        if (Date.now() - lastFrameTime > 6000 && !state.isBroadcasting) {
+          const offline = document.getElementById('viewerOfflineOverlay');
+          const img = document.getElementById('viewerFallbackImage');
+          if (offline) offline.style.display = 'flex';
+          if (img) img.style.display = 'none';
+          document.getElementById('headerLiveDot').classList.add('hidden');
+          document.getElementById('headerStatusBadge').textContent = 'STANDALONE';
+          document.getElementById('headerStatusBadge').className = 'rounded bg-slate-800 px-1.5 py-0.5 text-[11px] font-semibold text-slate-400';
+        }
+      }, 1000);
+    }
+
+    // Meta Synchronization
+    function updateBroadcastMeta() {
+      state.title = document.getElementById('inputStudioTitle').value;
+      state.broadcasterName = document.getElementById('inputStudioBroadcaster').value;
+      state.category = document.getElementById('selectStudioCategory').value;
+
+      updateUIWithMeta();
+
+      channel.postMessage({
+        type: 'meta_update',
+        title: state.title,
+        broadcasterName: state.broadcasterName,
+        category: state.category,
+        isLive: state.isLive
+      });
+    }
+
+    function updateUIWithMeta() {
+      document.getElementById('streamDisplayTitle').textContent = state.title;
+      document.getElementById('streamDisplayBroadcaster').textContent = '配信者: ' + state.broadcasterName;
+      document.getElementById('streamDisplayCategory').textContent = state.category;
+    }
+
+    // Chat Functions
+    function renderChatMessages() {
+      const container = document.getElementById('chatMessageList');
+      container.innerHTML = '';
+      state.comments.forEach(c => {
+        const el = document.createElement('div');
+        el.className = 'flex flex-col space-y-0.5 p-2 rounded-xl bg-slate-800/40 border border-slate-700/40';
+        el.innerHTML = `
+          <div class="flex items-center space-x-1.5">
+            <span class="font-bold text-slate-200 ${c.isBroadcaster ? 'text-rose-400 font-black' : ''}">${escapeHtml(c.senderName)}</span>
+            ${c.isBroadcaster ? '<span class="text-[9px] bg-rose-600/30 text-rose-300 px-1 rounded border border-rose-500/40">配信者</span>' : ''}
+            <span class="text-[10px] text-slate-500">${c.time}</span>
+          </div>
+          <p class="text-slate-300 text-xs">${escapeHtml(c.text)}</p>
+        `;
+        container.appendChild(el);
+      });
+      container.scrollTop = container.scrollHeight;
+    }
+
+    function appendChatMessage(msg) {
+      state.comments.push(msg);
+      renderChatMessages();
+      if (state.danmakuEnabled) {
+        spawnDanmaku(msg.text);
+      }
+    }
+
+    function handleSendChat(e) {
+      e.preventDefault();
+      const nameInput = document.getElementById('chatInputName');
+      const textInput = document.getElementById('chatInputText');
+      const text = textInput.value.trim();
+      if (!text) return;
+
+      const msg = {
+        id: Date.now().toString(),
+        senderName: nameInput.value.trim() || 'リスナー',
+        text: text,
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        isBroadcaster: state.isBroadcasting
+      };
+
+      appendChatMessage(msg);
+      channel.postMessage({ type: 'chat_message', message: msg });
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'chat_message', roomId: 'main-stream', text }));
+      }
+      textInput.value = '';
+    }
+
+    // Super Chat
+    function openSuperChatModal() {
+      document.getElementById('superChatModal').classList.remove('hidden');
+    }
+    function closeSuperChatModal() {
+      document.getElementById('superChatModal').classList.add('hidden');
+    }
+    function selectSuperChatAmount(amount, bg, color) {
+      state.selectedSuperChat = { amount, bg, color };
+      document.getElementById('btnSubmitSuperChat').textContent = `¥${amount.toLocaleString()} で送信`;
+    }
+    function submitSuperChat() {
+      const text = document.getElementById('superChatMessageInput').value.trim();
+      const name = document.getElementById('chatInputName').value.trim() || 'リスナー';
+
+      const sc = {
+        id: Date.now().toString(),
+        senderName: name,
+        text: text || '応援しています！',
+        amount: state.selectedSuperChat.amount,
+        color: state.selectedSuperChat.color,
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      };
+
+      appendSuperChatMessage(sc);
+      channel.postMessage({ type: 'super_chat', message: sc });
+      closeSuperChatModal();
+      document.getElementById('superChatMessageInput').value = '';
+    }
+
+    function appendSuperChatMessage(sc) {
+      const container = document.getElementById('chatMessageList');
+      const el = document.createElement('div');
+      el.className = `p-2.5 rounded-xl border border-amber-500/50 shadow-lg text-white space-y-1`}
+    el.style.backgroundColor = sc.color || '#d97706';
+      el.innerHTML = `
+        <div class="flex items-center justify-between text-xs font-black">
+          <span>${escapeHtml(sc.senderName)}</span>
+          <span class="rounded bg-black/30 px-1.5 py-0.5">¥${(sc.amount || 1000).toLocaleString()}</span>
+        </div>
+        <p class="text-xs font-semibold">${escapeHtml(sc.text)}</p>
+      `;
+      container.appendChild(el);
+      container.scrollTop = container.scrollHeight;
+      spawnDanmaku(`💰 [スーパーチャット ¥${sc.amount.toLocaleString()}] ${sc.text}`);
+    }
+
+    // Floating Reactions & Danmaku
+    function sendLike() {
+      state.likes++;
+      document.getElementById('streamLikeCount').textContent = state.likes;
+      showFloatingReaction('❤️');
+      channel.postMessage({ type: 'like', likes: state.likes });
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'send_like', roomId: 'main-stream' }));
+      }
+    }
+
+    function sendReaction(emoji) {
+      showFloatingReaction(emoji);
+      channel.postMessage({ type: 'reaction', emoji });
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'send_reaction', roomId: 'main-stream', emoji }));
+      }
+    }
+
+    function showFloatingReaction(emoji) {
+      const container = document.getElementById('reactionContainer');
+      if (!container) return;
+      const el = document.createElement('div');
+      el.className = 'reaction-item text-2xl select-none';
+      el.textContent = emoji;
+      el.style.left = (70 + Math.random() * 25) + '%';
+      container.appendChild(el);
+      setTimeout(() => el.remove(), 2500);
+    }
+
+    function spawnDanmaku(text) {
+      if (!state.danmakuEnabled) return;
+      const container = document.getElementById('danmakuContainer');
+      if (!container) return;
+      const el = document.createElement('div');
+      el.className = 'danmaku-item text-white text-sm sm:text-base';
+      el.textContent = text;
+      el.style.top = (10 + Math.random() * 70) + '%';
+      container.appendChild(el);
+      setTimeout(() => el.remove(), 6500);
+    }
+
+    function toggleDanmaku() {
+      state.danmakuEnabled = !state.danmakuEnabled;
+      document.getElementById('btnDanmakuToggle').textContent = `弾幕: ${state.danmakuEnabled ? 'ON' : 'OFF'}`;
+      document.getElementById('danmakuContainer').style.display = state.danmakuEnabled ? 'block' : 'none';
+    }
+
+    // Video Player Helpers
+    function toggleViewerPlay() {
+      const vid = document.getElementById('viewerVideo');
+      if (vid.paused) vid.play().catch(()=>{});
+      else vid.pause();
+    }
+    function toggleViewerMute() {
+      const vid = document.getElementById('viewerVideo');
+      state.isMuted = !state.isMuted;
+      vid.muted = state.isMuted;
+    }
+    function changeViewerVolume(val) {
+      const vid = document.getElementById('viewerVideo');
+      vid.volume = parseFloat(val);
+    }
+    function toggleFullscreen() {
+      const container = document.getElementById('playerContainer');
+      if (!document.fullscreenElement) {
+        container.requestFullscreen().catch(()=>{});
+      } else {
+        document.exitFullscreen().catch(()=>{});
+      }
+    }
+
+    function openViewerInNewTab() {
+      window.open(window.location.href, '_blank');
+    }
+
+    // Download this entire HTML as a standalone .html file
+    // Standalone Archive Storage and Replay System
+    const ARCHIVES_KEY = 'livestream_standalone_archives';
+    let activeArchive = null;
+    let archivePlaybackTimer = null;
+    let archiveCurrentTime = 0;
+    let archivePlaybackRate = 1.0;
+    let archiveBlobUrls = {};
+
+    function getSavedArchives() {
+      try {
+        const raw = localStorage.getItem(ARCHIVES_KEY);
+        if (raw) return JSON.parse(raw);
+      } catch (e) {}
+      return [];
+    }
+
+    function saveStandaloneArchive(title, duration, blob) {
+      const archives = getSavedArchives();
+      const id = 'arc-' + Date.now();
+      if (blob) {
+        archiveBlobUrls[id] = URL.createObjectURL(blob);
+      }
+      const newArchive = {
+        id,
+        title: title || '生配信アーカイブ',
+        broadcasterName: state.broadcasterName || '配信者',
+        category: state.category || '雑談・トーク',
+        startedAt: state.broadcastStartTime || (Date.now() - duration * 1000),
+        duration: duration,
+        likes: state.likes || 1,
+        comments: [...state.comments],
+        hasRecordedVideo: !!blob
+      };
+      archives.unshift(newArchive);
+      try {
+        localStorage.setItem(ARCHIVES_KEY, JSON.stringify(archives.slice(0, 20)));
+      } catch(e) {}
+
+      updateArchiveCountBadge();
+      alert(`🎉 配信アーカイブ「${newArchive.title}」を保存しました！\n「アーカイブ」タブからいつでも再生できます。`);
+    }
+
+    function updateArchiveCountBadge() {
+      const archives = getSavedArchives();
+      const badge = document.getElementById('archivesCountBadge');
+      if (badge) badge.textContent = archives.length;
+    }
+
+    function renderArchiveList() {
+      const container = document.getElementById('archiveCardsGrid');
+      if (!container) return;
+      const archives = getSavedArchives();
+      updateArchiveCountBadge();
+
+      if (archives.length === 0) {
+        container.innerHTML = `
+          <div class="col-span-full py-16 text-center text-slate-500">
+            <p class="text-sm font-semibold">保存されたアーカイブはまだありません。</p>
+            <p class="text-xs mt-1 text-slate-600">配信スタジオで配信を行うと、自動的にここにアーカイブが保存されます。</p>
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = archives.map(arc => {
+        const mins = Math.floor(arc.duration / 60);
+        const secs = arc.duration % 60;
+        const durStr = `${mins}:${secs.toString().padStart(2, '0')}`;
+        const dateStr = new Date(arc.startedAt).toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+        
+        return `
+          <div class="group rounded-2xl bg-slate-900 border border-slate-800 hover:border-purple-500/50 overflow-hidden shadow-xl transition-all hover:-translate-y-1">
+            <div class="relative aspect-video w-full bg-slate-950 flex items-center justify-center cursor-pointer" onclick="watchArchive('${arc.id}')">
+              <div class="absolute inset-0 bg-gradient-to-t from-slate-950 via-transparent to-black/40"></div>
+              <div class="h-12 w-12 rounded-full bg-purple-600/90 text-white flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
+                <svg class="h-6 w-6 fill-white ml-0.5" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+              </div>
+              <div class="absolute bottom-2 right-2 rounded bg-black/80 px-2 py-0.5 text-[11px] font-mono font-bold text-white">
+                ${durStr}
+              </div>
+              <div class="absolute top-2 left-2 rounded bg-purple-600/80 px-2 py-0.5 text-[10px] font-bold text-white uppercase">
+                ${arc.category || 'アーカイブ'}
+              </div>
+            </div>
+            <div class="p-4 space-y-2">
+              <h3 class="font-bold text-sm text-slate-100 line-clamp-1 group-hover:text-purple-300 transition-colors cursor-pointer" onclick="watchArchive('${arc.id}')">
+                ${escapeHtml(arc.title)}
+              </h3>
+              <div class="flex items-center justify-between text-xs text-slate-400">
+                <span>${escapeHtml(arc.broadcasterName)}</span>
+                <span>${dateStr}</span>
+              </div>
+              <div class="pt-2 border-t border-slate-800/80 flex items-center justify-between text-xs">
+                <span class="text-slate-400">チャット ${arc.comments ? arc.comments.length : 0}件</span>
+                <div class="flex items-center space-x-1">
+                  <button onclick="watchArchive('${arc.id}')" class="px-2.5 py-1 rounded-lg bg-purple-600 hover:bg-purple-500 text-white font-bold text-[11px]">
+                    再生する
+                  </button>
+                  <button onclick="deleteStandaloneArchive('${arc.id}')" class="p-1 text-slate-500 hover:text-rose-400" title="削除">
+                    ✕
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function watchArchive(id) {
+      const archives = getSavedArchives();
+      activeArchive = archives.find(a => a.id === id);
+      if (!activeArchive) return;
+
+      document.getElementById('archiveListContainer').classList.add('hidden');
+      document.getElementById('archivePlayerContainer').classList.remove('hidden');
+
+      document.getElementById('archiveWatchTitle').textContent = activeArchive.title;
+      document.getElementById('archiveWatchBroadcaster').textContent = `配信者: ${activeArchive.broadcasterName}`;
+      document.getElementById('archiveWatchDate').textContent = new Date(activeArchive.startedAt).toLocaleString('ja-JP');
+      
+      const mins = Math.floor(activeArchive.duration / 60);
+      const secs = activeArchive.duration % 60;
+      document.getElementById('archiveWatchDuration').textContent = `録画時間: ${mins}分${secs}秒`;
+
+      const videoEl = document.getElementById('archiveVideoEl');
+      const canvasEl = document.getElementById('archiveSimCanvas');
+
+      if (archiveBlobUrls[id]) {
+        videoEl.classList.remove('hidden');
+        canvasEl.classList.add('hidden');
+        videoEl.src = archiveBlobUrls[id];
+      } else {
+        // Render stylized animated canvas for sample archives
+        videoEl.classList.add('hidden');
+        canvasEl.classList.remove('hidden');
+        startArchiveCanvasSimulation();
+      }
+
+      archiveCurrentTime = 0;
+      updateArchiveTimeDisplay();
+      startArchivePlayback();
+    }
+
+    function backToArchiveList() {
+      pauseArchivePlayback();
+      const videoEl = document.getElementById('archiveVideoEl');
+      videoEl.pause();
+      document.getElementById('archivePlayerContainer').classList.add('hidden');
+      document.getElementById('archiveListContainer').classList.remove('hidden');
+      renderArchiveList();
+    }
+
+    function startArchivePlayback() {
+      pauseArchivePlayback();
+      const videoEl = document.getElementById('archiveVideoEl');
+      if (!videoEl.classList.contains('hidden') && videoEl.src) {
+        videoEl.play().catch(()=>{});
+      }
+
+      archivePlaybackTimer = setInterval(() => {
+        if (!activeArchive) return;
+        archiveCurrentTime += 0.5 * archivePlaybackRate;
+        if (archiveCurrentTime > activeArchive.duration) {
+          archiveCurrentTime = activeArchive.duration;
+          pauseArchivePlayback();
+        }
+        updateArchiveTimeDisplay();
+        syncArchiveChat();
+      }, 500);
+
+      document.getElementById('btnArchivePlay').textContent = '一時停止';
+    }
+
+    function pauseArchivePlayback() {
+      if (archivePlaybackTimer) {
+        clearInterval(archivePlaybackTimer);
+        archivePlaybackTimer = null;
+      }
+      const videoEl = document.getElementById('archiveVideoEl');
+      videoEl.pause();
+      const btn = document.getElementById('btnArchivePlay');
+      if (btn) btn.textContent = '再生';
+    }
+
+    function toggleArchivePlay() {
+      if (archivePlaybackTimer) {
+        pauseArchivePlayback();
+      } else {
+        startArchivePlayback();
+      }
+    }
+
+    function seekArchive(val) {
+      if (!activeArchive) return;
+      archiveCurrentTime = (parseFloat(val) / 100) * activeArchive.duration;
+      const videoEl = document.getElementById('archiveVideoEl');
+      if (!videoEl.classList.contains('hidden') && videoEl.duration) {
+        videoEl.currentTime = (parseFloat(val) / 100) * videoEl.duration;
+      }
+      updateArchiveTimeDisplay();
+      syncArchiveChat();
+    }
+
+    function changeArchivePlaybackRate(val) {
+      archivePlaybackRate = parseFloat(val);
+      const videoEl = document.getElementById('archiveVideoEl');
+      videoEl.playbackRate = archivePlaybackRate;
+    }
+
+    function updateArchiveTimeDisplay() {
+      if (!activeArchive) return;
+      const curM = Math.floor(archiveCurrentTime / 60);
+      const curS = Math.floor(archiveCurrentTime % 60);
+      const totM = Math.floor(activeArchive.duration / 60);
+      const totS = Math.floor(activeArchive.duration % 60);
+
+      const curStr = `${curM.toString().padStart(2, '0')}:${curS.toString().padStart(2, '0')}`;
+      const totStr = `${totM.toString().padStart(2, '0')}:${totS.toString().padStart(2, '0')}`;
+
+      document.getElementById('archiveCurrentTimeText').textContent = `${curStr} / ${totStr}`;
+      document.getElementById('archiveReplayTimeBadge').textContent = `${curStr} / ${totStr}`;
+
+      const seeker = document.getElementById('archiveSeeker');
+      if (seeker && activeArchive.duration > 0) {
+        seeker.value = (archiveCurrentTime / activeArchive.duration) * 100;
+      }
+    }
+
+    function syncArchiveChat() {
+      if (!activeArchive || !activeArchive.comments) return;
+      const listEl = document.getElementById('archiveChatList');
+      const currentMs = archiveCurrentTime * 1000;
+
+      const visible = activeArchive.comments.filter(c => {
+        const offset = c.timestamp - (activeArchive.startedAt || 0);
+        return offset <= currentMs || (c.timestamp <= currentMs);
+      });
+
+      listEl.innerHTML = visible.map(c => `
+        <div class="p-2 rounded-xl bg-slate-950/70 border border-slate-800">
+          <div class="flex items-center justify-between text-[11px] text-slate-400">
+            <span class="font-bold text-slate-300">${escapeHtml(c.userName)}</span>
+          </div>
+          <p class="text-xs text-slate-100 mt-0.5">${escapeHtml(c.text)}</p>
+        </div>
+      `).join('');
+      listEl.scrollTop = listEl.scrollHeight;
+    }
+
+    function startArchiveCanvasSimulation() {
+      const canvas = document.getElementById('archiveSimCanvas');
+      canvas.width = 640;
+      canvas.height = 360;
+      const ctx = canvas.getContext('2d');
+      let t = 0;
+
+      function draw() {
+        if (!activeArchive || canvas.classList.contains('hidden')) return;
+        t += 0.05;
+        const grad = ctx.createLinearGradient(0, 0, 640, 360);
+        grad.addColorStop(0, '#0f172a');
+        grad.addColorStop(1, '#3b0764');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, 640, 360);
+
+        ctx.fillStyle = 'rgba(168, 85, 247, 0.2)';
+        ctx.beginPath();
+        ctx.arc(320 + Math.sin(t) * 100, 180 + Math.cos(t) * 50, 70, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 20px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('録画アーカイブ 再生中', 320, 160);
+
+        ctx.fillStyle = '#cbd5e1';
+        ctx.font = '14px sans-serif';
+        ctx.fillText(activeArchive.title, 320, 200);
+
+        requestAnimationFrame(draw);
+      }
+      draw();
+    }
+
+    function deleteStandaloneArchive(id) {
+      if (!confirm('このアーカイブを削除してもよろしいですか？')) return;
+      const archives = getSavedArchives().filter(a => a.id !== id);
+      try {
+        localStorage.setItem(ARCHIVES_KEY, JSON.stringify(archives));
+      } catch(e) {}
+      renderArchiveList();
+    }
+
+    function downloadActiveArchiveVideo() {
+      if (!activeArchive) return;
+      if (archiveBlobUrls[activeArchive.id]) {
+        const a = document.createElement('a');
+        a.href = archiveBlobUrls[activeArchive.id];
+        a.download = `${activeArchive.title}.webm`;
+        a.click();
+      } else {
+        alert('このサンプルアーカイブには動画バイナリが含まれていません。スタジオから録画した配信をダウンロードできます。');
+      }
+    }
+
+    function downloadActiveArchiveChatJson() {
+      if (!activeArchive) return;
+      const data = JSON.stringify(activeArchive, null, 2);
+      const blob = new Blob([data], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${activeArchive.title}_chat.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    function downloadSelfHtml() {
+      const htmlContent = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
+      const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'livestream_standalone.html';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    function escapeHtml(str) {
+      return (str || '').replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
+    }
+
+    // Run on load
+    window.addEventListener('DOMContentLoaded', init);
+  </script>
+</body>
+</html>

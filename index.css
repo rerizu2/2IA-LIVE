@@ -1,0 +1,55 @@
+@import "tailwindcss";
+
+@keyframes danmaku {
+  0% {
+    transform: translateX(100%);
+    left: 100%;
+  }
+  100% {
+    transform: translateX(-100%);
+    left: 0%;
+  }
+}
+
+@keyframes floatUp {
+  0% {
+    transform: translateY(0) scale(0.6);
+    opacity: 0;
+  }
+  15% {
+    opacity: 1;
+    transform: translateY(-20px) scale(1.25);
+  }
+  80% {
+    opacity: 0.85;
+  }
+  100% {
+    transform: translateY(-280px) scale(1);
+    opacity: 0;
+  }
+}
+
+.animate-danmaku {
+  animation: danmaku 7s linear forwards;
+}
+
+.animate-float-up {
+  animation: floatUp 3.2s ease-out forwards;
+}
+
+/* Custom sleek scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.6);
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(71, 85, 105, 0.6);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(100, 116, 139, 0.8);
+}
+
